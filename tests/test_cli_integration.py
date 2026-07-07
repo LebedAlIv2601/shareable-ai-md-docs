@@ -137,7 +137,14 @@ class CliIntegrationTests(unittest.TestCase):
                 encoding="utf-8",
             )
             gh.chmod(gh.stat().st_mode | stat.S_IXUSR)
-            env = {"HOME": str(home), "PATH": f"{fake_bin}:{os.environ['PATH']}"}
+            env = {
+                "HOME": str(home),
+                "PATH": f"{fake_bin}:{os.environ['PATH']}",
+                "GIT_AUTHOR_NAME": "Tests",
+                "GIT_AUTHOR_EMAIL": "tests@example.com",
+                "GIT_COMMITTER_NAME": "Tests",
+                "GIT_COMMITTER_EMAIL": "tests@example.com",
+            }
 
             self.assertEqual(run(["init"], cwd=project, env=env).returncode, 0)
             add = run(["add", "pizza", str(docs), "--branch", "main", "--mode", "pr"], cwd=project, env=env)
