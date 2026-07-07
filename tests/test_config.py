@@ -4,8 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from agent_docs_cli.config import DocConfig, add_doc, empty_config, load_config, save_config
-from agent_docs_cli.errors import AgentDocsError
+from disgust_docs_cli.config import DocConfig, add_doc, empty_config, load_config, save_config
+from disgust_docs_cli.errors import DisgustDocsError
 
 
 class ConfigTests(unittest.TestCase):
@@ -20,7 +20,7 @@ class ConfigTests(unittest.TestCase):
                     branch="main",
                     provider="github",
                     mode="pr",
-                    path=".agent-docs/pizza",
+                    path=".disgust-docs/pizza",
                 ),
                 root,
             )
@@ -35,7 +35,7 @@ class ConfigTests(unittest.TestCase):
     def test_rejects_path_traversal(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            with self.assertRaises(AgentDocsError):
+            with self.assertRaises(DisgustDocsError):
                 add_doc(
                     empty_config(),
                     DocConfig(
@@ -52,7 +52,7 @@ class ConfigTests(unittest.TestCase):
     def test_rejects_unsafe_alias(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            with self.assertRaises(AgentDocsError):
+            with self.assertRaises(DisgustDocsError):
                 add_doc(
                     empty_config(),
                     DocConfig(
@@ -61,7 +61,7 @@ class ConfigTests(unittest.TestCase):
                         branch="main",
                         provider="github",
                         mode="pr",
-                        path=".agent-docs/pizza",
+                        path=".disgust-docs/pizza",
                     ),
                     root,
                 )

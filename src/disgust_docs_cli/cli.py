@@ -4,8 +4,8 @@ import argparse
 import sys
 from pathlib import Path
 
-from .config import AgentDocsConfig, DocConfig, add_doc, empty_config, load_config, remove_doc, save_config
-from .errors import AgentDocsError
+from .config import DisgustDocsConfig, DocConfig, add_doc, empty_config, load_config, remove_doc, save_config
+from .errors import DisgustDocsError
 from .git_ops import (
     checkout_edit_worktree,
     checkout_read_worktree,
@@ -32,7 +32,7 @@ from .state import EditSession, load_state, save_state, with_edit, without_edit
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="agent-docs")
+    parser = argparse.ArgumentParser(prog="disgust-docs")
     parser.add_argument(
         "--project",
         type=Path,
@@ -41,7 +41,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    subparsers.add_parser("init", help="Create .agent-docs.yml and ignore .agent-docs/.")
+    subparsers.add_parser("init", help="Create .disgust-docs.yml and ignore .disgust-docs/.")
 
     add_parser = subparsers.add_parser("add", help="Register a docs repository.")
     add_parser.add_argument("alias")
@@ -84,8 +84,8 @@ def main(argv: list[str] | None = None) -> int:
     project_root = args.project.resolve()
     try:
         dispatch(args, project_root)
-    except AgentDocsError as exc:
-        print(f"agent-docs: {exc}", file=sys.stderr)
+    except DisgustDocsError as exc:
+        print(f"disgust-docs: {exc}", file=sys.stderr)
         return 1
     return 0
 
@@ -108,25 +108,25 @@ def dispatch(args: argparse.Namespace, project_root: Path) -> None:
     elif args.command == "remove":
         command_remove(project_root, args.alias, args.yes)
     else:
-        raise AgentDocsError(f"Unknown command: {args.command}")
+        raise DisgustDocsError(f"Unknown command: {args.command}")
 
 
 def command_init(project_root: Path) -> None:
     project_root.mkdir(parents=True, exist_ok=True)
-    config_file = project_root / ".agent-docs.yml"
+    config_file = project_root / ".disgust-docs.yml"
     if not config_file.exists():
         save_config(project_root, empty_config())
-        print("Created .agent-docs.yml")
+        print("Created .disgust-docs.yml")
     else:
         load_config(project_root)
-        print(".agent-docs.yml already exists")
+        print(".disgust-docs.yml already exists")
     ensure_gitignore(project_root)
     docs_dir(project_root).mkdir(parents=True, exist_ok=True)
 
 
 def command_add(args: argparse.Namespace, project_root: Path) -> None:
     config = load_config(project_root, required=False)
-    raw_path = args.path or f".agent-docs/{args.alias}"
+    raw_path = args.path or f".disgust-docs/{args.alias}"
     doc = DocConfig(
         alias=args.alias,
         repo=args.repo,
@@ -148,7 +148,7 @@ def command_sync(project_root: Path, alias: str | None) -> None:
     docs = selected_docs(config, alias)
     for doc in docs:
         if doc.alias in state.edits:
-            raise AgentDocsError(f"Cannot sync '{doc.alias}' while an edit session is active.")
+            raise DisgustDocsError(f"Cannot sync '{doc.alias}' while an edit session is active.")
         path = validate_doc_path(project_root, doc.path, doc.alias)
         checkout_read_worktree(doc, path)
         print(f"Synced {doc.alias} -> {doc.path} @ {current_commit(path)}")
@@ -177,12 +177,12 @@ def command_edit(project_root: Path, alias: str, branch: str) -> None:
     config = load_config(project_root)
     doc = require_doc(config, alias)
     if doc.mode != "pr":
-        raise AgentDocsError(f"Docs '{alias}' is {doc.mode}; set mode: pr to edit.")
+        raise DisgustDocsError(f"Docs '{alias}' is {doc.mode}; set mode: pr to edit.")
     state = load_state(project_root)
     if alias in state.edits:
-        raise AgentDocsError(f"Edit session already active for '{alias}'.")
+        raise DisgustDocsError(f"Edit session already active for '{alias}'.")
     if branch == doc.branch:
-        raise AgentDocsError("Edit branch must differ from the base branch.")
+        raise DisgustDocsError("Edit branch must differ from the base branch.")
     path = validate_doc_path(project_root, doc.path, doc.alias)
     checkout_edit_worktree(doc, path, branch)
     state = with_edit(
@@ -198,16 +198,16 @@ def command_publish(project_root: Path, alias: str, message: str, title: str, bo
     config = load_config(project_root)
     doc = require_doc(config, alias)
     if doc.mode != "pr":
-        raise AgentDocsError(f"Docs '{alias}' is {doc.mode}; publish requires mode: pr.")
+        raise DisgustDocsError(f"Docs '{alias}' is {doc.mode}; publish requires mode: pr.")
     state = load_state(project_root)
     session = state.edits.get(alias)
     if not session:
-        raise AgentDocsError(f"No edit session active for '{alias}'. Run 'agent-docs edit' first.")
+        raise DisgustDocsError(f"No edit session active for '{alias}'. Run 'disgust-docs edit' first.")
     path = validate_doc_path(project_root, doc.path, doc.alias)
     require_gh()
     committed = commit_all(path, message)
     if not committed:
-        raise AgentDocsError("No documentation changes to publish.")
+        raise DisgustDocsError("No documentation changes to publish.")
     push_branch(path, session.branch)
     pr_url = create_pr(path, title, body, session.base_branch)
     print(pr_url or "Created pull request.")
@@ -224,11 +224,11 @@ def command_abort(project_root: Path, alias: str, yes: bool) -> None:
     doc = require_doc(config, alias)
     state = load_state(project_root)
     if alias not in state.edits:
-        raise AgentDocsError(f"No edit session active for '{alias}'.")
+        raise DisgustDocsError(f"No edit session active for '{alias}'.")
     path = validate_doc_path(project_root, doc.path, doc.alias)
     ensure_clean_worktree(path)
     if not yes and not confirm(f"Abort edit session for '{alias}' and discard its worktree?"):
-        raise AgentDocsError("Abort cancelled.")
+        raise DisgustDocsError("Abort cancelled.")
     remove_worktree(path, mirror_path(doc.repo))
     state = without_edit(state, alias)
     save_state(project_root, state)
@@ -242,9 +242,9 @@ def command_remove(project_root: Path, alias: str, yes: bool) -> None:
     doc = require_doc(config, alias)
     path = validate_doc_path(project_root, doc.path, doc.alias)
     if dirty_state(path) == "dirty":
-        raise AgentDocsError(f"Docs worktree has local changes and will not be removed: {path}")
+        raise DisgustDocsError(f"Docs worktree has local changes and will not be removed: {path}")
     if not yes and not confirm(f"Remove docs registration '{alias}' and local worktree?"):
-        raise AgentDocsError("Remove cancelled.")
+        raise DisgustDocsError("Remove cancelled.")
     remove_worktree(path, mirror_path(doc.repo))
     remove_path_if_safe(path)
     save_config(project_root, remove_doc(config, alias))
@@ -257,25 +257,25 @@ def ensure_gitignore(project_root: Path) -> None:
     path = gitignore_path(project_root)
     existing = path.read_text(encoding="utf-8") if path.exists() else ""
     lines = existing.splitlines()
-    if ".agent-docs/" not in lines:
+    if ".disgust-docs/" not in lines:
         if existing and not existing.endswith("\n"):
             existing += "\n"
-        existing += ".agent-docs/\n"
+        existing += ".disgust-docs/\n"
         path.write_text(existing, encoding="utf-8")
 
 
-def selected_docs(config: AgentDocsConfig, alias: str | None) -> list[DocConfig]:
+def selected_docs(config: DisgustDocsConfig, alias: str | None) -> list[DocConfig]:
     if alias:
         return [require_doc(config, alias)]
     return [config.docs[key] for key in sorted(config.docs)]
 
 
-def require_doc(config: AgentDocsConfig, alias: str) -> DocConfig:
+def require_doc(config: DisgustDocsConfig, alias: str) -> DocConfig:
     validate_alias(alias)
     try:
         return config.docs[alias]
     except KeyError as exc:
-        raise AgentDocsError(f"Unknown docs alias: {alias}.") from exc
+        raise DisgustDocsError(f"Unknown docs alias: {alias}.") from exc
 
 
 def confirm(prompt: str) -> bool:

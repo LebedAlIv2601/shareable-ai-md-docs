@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .errors import AgentDocsError
+from .errors import DisgustDocsError
 from .paths import config_path, validate_alias, validate_branch_name, validate_doc_path, validate_repo_url
 
 
@@ -23,57 +23,57 @@ class DocConfig:
 
 
 @dataclass(frozen=True)
-class AgentDocsConfig:
+class DisgustDocsConfig:
     version: int
     docs: dict[str, DocConfig]
 
 
-def empty_config() -> AgentDocsConfig:
-    return AgentDocsConfig(version=1, docs={})
+def empty_config() -> DisgustDocsConfig:
+    return DisgustDocsConfig(version=1, docs={})
 
 
-def load_config(project_root: Path, *, required: bool = True) -> AgentDocsConfig:
+def load_config(project_root: Path, *, required: bool = True) -> DisgustDocsConfig:
     path = config_path(project_root)
     if not path.exists():
         if required:
-            raise AgentDocsError("Missing .agent-docs.yml. Run 'agent-docs init' first.")
+            raise DisgustDocsError("Missing .disgust-docs.yml. Run 'disgust-docs init' first.")
         return empty_config()
     data = _load_yaml(path)
     return parse_config(data, project_root)
 
 
-def save_config(project_root: Path, config: AgentDocsConfig) -> None:
+def save_config(project_root: Path, config: DisgustDocsConfig) -> None:
     config_path(project_root).write_text(_dump_config(config), encoding="utf-8")
 
 
-def parse_config(data: Any, project_root: Path) -> AgentDocsConfig:
+def parse_config(data: Any, project_root: Path) -> DisgustDocsConfig:
     if not isinstance(data, dict):
-        raise AgentDocsError(".agent-docs.yml must contain a YAML object.")
+        raise DisgustDocsError(".disgust-docs.yml must contain a YAML object.")
     version = data.get("version")
     if version != 1:
-        raise AgentDocsError(".agent-docs.yml must set version: 1.")
+        raise DisgustDocsError(".disgust-docs.yml must set version: 1.")
     raw_docs = data.get("docs", {})
     if raw_docs is None:
         raw_docs = {}
     if not isinstance(raw_docs, dict):
-        raise AgentDocsError(".agent-docs.yml docs must be a mapping.")
+        raise DisgustDocsError(".disgust-docs.yml docs must be a mapping.")
 
     docs: dict[str, DocConfig] = {}
     for alias, raw_doc in raw_docs.items():
         if not isinstance(alias, str) or not isinstance(raw_doc, dict):
-            raise AgentDocsError("Each docs entry must be a mapping keyed by alias.")
+            raise DisgustDocsError("Each docs entry must be a mapping keyed by alias.")
         validate_alias(alias)
         repo = _required_str(raw_doc, "repo", alias)
         branch = _optional_str(raw_doc, "branch", "main")
         provider = _optional_str(raw_doc, "provider", "github")
         mode = _optional_str(raw_doc, "mode", "readOnly")
-        raw_path = _optional_str(raw_doc, "path", f".agent-docs/{alias}")
+        raw_path = _optional_str(raw_doc, "path", f".disgust-docs/{alias}")
         validate_repo_url(repo)
         validate_branch_name(branch)
         if provider not in VALID_PROVIDERS:
-            raise AgentDocsError(f"Unsupported provider for {alias}: {provider}.")
+            raise DisgustDocsError(f"Unsupported provider for {alias}: {provider}.")
         if mode not in VALID_MODES:
-            raise AgentDocsError(f"Unsupported mode for {alias}: {mode}.")
+            raise DisgustDocsError(f"Unsupported mode for {alias}: {mode}.")
         validate_doc_path(project_root, raw_path, alias)
         docs[alias] = DocConfig(
             alias=alias,
@@ -83,18 +83,18 @@ def parse_config(data: Any, project_root: Path) -> AgentDocsConfig:
             mode=mode,
             path=raw_path,
         )
-    return AgentDocsConfig(version=1, docs=docs)
+    return DisgustDocsConfig(version=1, docs=docs)
 
 
-def add_doc(config: AgentDocsConfig, doc: DocConfig, project_root: Path) -> AgentDocsConfig:
+def add_doc(config: DisgustDocsConfig, doc: DocConfig, project_root: Path) -> DisgustDocsConfig:
     validate_alias(doc.alias)
     validate_repo_url(doc.repo)
     validate_branch_name(doc.branch)
     if doc.provider not in VALID_PROVIDERS:
-        raise AgentDocsError(f"Unsupported provider: {doc.provider}.")
+        raise DisgustDocsError(f"Unsupported provider: {doc.provider}.")
     if doc.mode not in VALID_MODES:
-        raise AgentDocsError(f"Unsupported mode: {doc.mode}.")
-    validate_doc_path(project_root, doc.path or f".agent-docs/{doc.alias}", doc.alias)
+        raise DisgustDocsError(f"Unsupported mode: {doc.mode}.")
+    validate_doc_path(project_root, doc.path or f".disgust-docs/{doc.alias}", doc.alias)
     docs = dict(config.docs)
     docs[doc.alias] = DocConfig(
         alias=doc.alias,
@@ -102,30 +102,30 @@ def add_doc(config: AgentDocsConfig, doc: DocConfig, project_root: Path) -> Agen
         branch=doc.branch,
         provider=doc.provider,
         mode=doc.mode,
-        path=doc.path or f".agent-docs/{doc.alias}",
+        path=doc.path or f".disgust-docs/{doc.alias}",
     )
-    return AgentDocsConfig(version=1, docs=docs)
+    return DisgustDocsConfig(version=1, docs=docs)
 
 
-def remove_doc(config: AgentDocsConfig, alias: str) -> AgentDocsConfig:
+def remove_doc(config: DisgustDocsConfig, alias: str) -> DisgustDocsConfig:
     if alias not in config.docs:
-        raise AgentDocsError(f"Unknown docs alias: {alias}.")
+        raise DisgustDocsError(f"Unknown docs alias: {alias}.")
     docs = dict(config.docs)
     del docs[alias]
-    return AgentDocsConfig(version=1, docs=docs)
+    return DisgustDocsConfig(version=1, docs=docs)
 
 
 def _required_str(raw_doc: dict[str, Any], key: str, alias: str) -> str:
     value = raw_doc.get(key)
     if not isinstance(value, str) or not value:
-        raise AgentDocsError(f"Docs entry {alias} must set {key}.")
+        raise DisgustDocsError(f"Docs entry {alias} must set {key}.")
     return value
 
 
 def _optional_str(raw_doc: dict[str, Any], key: str, default: str) -> str:
     value = raw_doc.get(key, default)
     if not isinstance(value, str) or not value:
-        raise AgentDocsError(f"Docs field {key} must be a non-empty string.")
+        raise DisgustDocsError(f"Docs field {key} must be a non-empty string.")
     return value
 
 
@@ -162,20 +162,20 @@ def _load_v1_yaml(text: str) -> dict[str, Any]:
         elif in_docs and indent == 2:
             key, value = _split_yaml_pair(line)
             if value:
-                raise AgentDocsError("Invalid docs YAML: alias entries must be mappings.")
+                raise DisgustDocsError("Invalid docs YAML: alias entries must be mappings.")
             current_alias = key
             docs[current_alias] = {}
         elif in_docs and indent == 4 and current_alias:
             key, value = _split_yaml_pair(line)
             docs[current_alias][key] = value
         else:
-            raise AgentDocsError("Unsupported .agent-docs.yml format.")
+            raise DisgustDocsError("Unsupported .disgust-docs.yml format.")
     return result
 
 
 def _split_yaml_pair(line: str) -> tuple[str, str]:
     if ":" not in line:
-        raise AgentDocsError("Unsupported .agent-docs.yml format.")
+        raise DisgustDocsError("Unsupported .disgust-docs.yml format.")
     key, value = line.split(":", 1)
     return key.strip(), _unquote(value.strip())
 
@@ -186,7 +186,7 @@ def _unquote(value: str) -> str:
     return value
 
 
-def _dump_config(config: AgentDocsConfig) -> str:
+def _dump_config(config: DisgustDocsConfig) -> str:
     lines = ["version: 1", "docs:"]
     for alias in sorted(config.docs):
         doc = config.docs[alias]
@@ -197,7 +197,7 @@ def _dump_config(config: AgentDocsConfig) -> str:
                 f"    branch: {_quote(doc.branch)}",
                 f"    provider: {_quote(doc.provider)}",
                 f"    mode: {_quote(doc.mode)}",
-                f"    path: {_quote(doc.path or f'.agent-docs/{alias}')}",
+                f"    path: {_quote(doc.path or f'.disgust-docs/{alias}')}",
             ]
         )
     return "\n".join(lines) + "\n"

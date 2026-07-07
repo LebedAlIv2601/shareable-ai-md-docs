@@ -18,7 +18,7 @@ def run(args: list[str], *, cwd: Path, env: dict[str, str] | None = None) -> sub
     if env:
         merged_env.update(env)
     return subprocess.run(
-        [sys.executable, "-m", "agent_docs_cli", *args],
+        [sys.executable, "-m", "disgust_docs_cli", *args],
         cwd=cwd,
         env=merged_env,
         text=True,
@@ -71,10 +71,10 @@ class CliIntegrationTests(unittest.TestCase):
             )
             self.assertEqual(add.returncode, 0, add.stderr)
 
-            self.assertTrue((project / ".agent-docs.yml").exists())
-            self.assertIn(".agent-docs/", (project / ".gitignore").read_text(encoding="utf-8"))
+            self.assertTrue((project / ".disgust-docs.yml").exists())
+            self.assertIn(".disgust-docs/", (project / ".gitignore").read_text(encoding="utf-8"))
             self.assertEqual(
-                (project / ".agent-docs" / "pizza" / "README.md").read_text(encoding="utf-8"),
+                (project / ".disgust-docs" / "pizza" / "README.md").read_text(encoding="utf-8"),
                 "# Pizza Docs\n",
             )
             status = run(["status"], cwd=project, env={"HOME": str(home)})
@@ -97,7 +97,7 @@ class CliIntegrationTests(unittest.TestCase):
                     env={"HOME": str(home)},
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertTrue((project / ".agent-docs" / "pizza" / "README.md").exists())
+                self.assertTrue((project / ".disgust-docs" / "pizza" / "README.md").exists())
 
     def test_edit_requires_pr_mode(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -144,7 +144,7 @@ class CliIntegrationTests(unittest.TestCase):
             self.assertEqual(add.returncode, 0, add.stderr)
             edit = run(["edit", "pizza", "--branch", "docs/change"], cwd=project, env=env)
             self.assertEqual(edit.returncode, 0, edit.stderr)
-            docs_readme = project / ".agent-docs" / "pizza" / "README.md"
+            docs_readme = project / ".disgust-docs" / "pizza" / "README.md"
             docs_readme.write_text("# Pizza Docs\n\nUpdated.\n", encoding="utf-8")
 
             published = run(

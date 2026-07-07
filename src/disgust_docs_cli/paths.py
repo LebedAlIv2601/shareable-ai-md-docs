@@ -4,14 +4,14 @@ import hashlib
 import re
 from pathlib import Path
 
-from .errors import AgentDocsError
+from .errors import DisgustDocsError
 
 
 ALIAS_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
 
 def config_path(project_root: Path) -> Path:
-    return project_root / ".agent-docs.yml"
+    return project_root / ".disgust-docs.yml"
 
 
 def gitignore_path(project_root: Path) -> Path:
@@ -19,7 +19,7 @@ def gitignore_path(project_root: Path) -> Path:
 
 
 def docs_dir(project_root: Path) -> Path:
-    return project_root / ".agent-docs"
+    return project_root / ".disgust-docs"
 
 
 def state_path(project_root: Path) -> Path:
@@ -27,7 +27,7 @@ def state_path(project_root: Path) -> Path:
 
 
 def global_home() -> Path:
-    return Path.home() / ".agent-docs"
+    return Path.home() / ".disgust-docs"
 
 
 def mirror_root() -> Path:
@@ -47,7 +47,7 @@ def mirror_path(repo_url: str) -> Path:
 
 def validate_alias(alias: str) -> None:
     if not ALIAS_RE.match(alias) or alias in {".", ".."}:
-        raise AgentDocsError(
+        raise DisgustDocsError(
             "Invalid alias. Use 1-64 letters, digits, dots, underscores, or hyphens; "
             "do not use path separators."
         )
@@ -55,13 +55,13 @@ def validate_alias(alias: str) -> None:
 
 def validate_repo_url(repo_url: str) -> None:
     if not repo_url:
-        raise AgentDocsError("Invalid repo URL: it must be non-empty.")
+        raise DisgustDocsError("Invalid repo URL: it must be non-empty.")
     if repo_url.startswith("-"):
-        raise AgentDocsError("Invalid repo URL: it must not start with '-'.")
+        raise DisgustDocsError("Invalid repo URL: it must not start with '-'.")
     if repo_url.startswith(("/", ".", "~")):
         return
     if any(char.isspace() for char in repo_url):
-        raise AgentDocsError("Invalid repo URL: remote URLs must contain no whitespace.")
+        raise DisgustDocsError("Invalid repo URL: remote URLs must contain no whitespace.")
     allowed_prefixes = (
         "git@",
         "ssh://",
@@ -69,32 +69,32 @@ def validate_repo_url(repo_url: str) -> None:
         "file://",
     )
     if not repo_url.startswith(allowed_prefixes):
-        raise AgentDocsError(
+        raise DisgustDocsError(
             "Invalid repo URL. Use git@, ssh://, https://, file://, or a local path."
         )
 
 
 def validate_branch_name(branch: str) -> None:
     if not branch or branch.startswith("-"):
-        raise AgentDocsError("Invalid branch name.")
+        raise DisgustDocsError("Invalid branch name.")
     forbidden = ["..", "@{", "\\", "//", " "]
     if any(token in branch for token in forbidden):
-        raise AgentDocsError("Invalid branch name: contains forbidden git ref characters.")
+        raise DisgustDocsError("Invalid branch name: contains forbidden git ref characters.")
     if branch.startswith("/") or branch.endswith("/") or branch.endswith("."):
-        raise AgentDocsError("Invalid branch name.")
+        raise DisgustDocsError("Invalid branch name.")
     if branch.endswith(".lock"):
-        raise AgentDocsError("Invalid branch name: must not end with .lock.")
+        raise DisgustDocsError("Invalid branch name: must not end with .lock.")
 
 
 def validate_doc_path(project_root: Path, raw_path: str, alias: str) -> Path:
     if not raw_path:
-        raw_path = f".agent-docs/{alias}"
+        raw_path = f".disgust-docs/{alias}"
     candidate = (project_root / raw_path).resolve()
     allowed = docs_dir(project_root).resolve()
     try:
         candidate.relative_to(allowed)
     except ValueError as exc:
-        raise AgentDocsError("Doc path must stay inside .agent-docs/.") from exc
+        raise DisgustDocsError("Doc path must stay inside .disgust-docs/.") from exc
     if candidate == allowed:
-        raise AgentDocsError("Doc path must point to a child of .agent-docs/.")
+        raise DisgustDocsError("Doc path must point to a child of .disgust-docs/.")
     return candidate

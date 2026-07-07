@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 
 from .config import DocConfig
-from .errors import AgentDocsError
+from .errors import DisgustDocsError
 from .paths import mirror_path
 
 
@@ -25,7 +25,7 @@ def run(args: list[str], *, cwd: Path | None = None, check: bool = True) -> subp
     if check and completed.returncode != 0:
         command = " ".join(args)
         details = completed.stderr.strip() or completed.stdout.strip()
-        raise AgentDocsError(f"Command failed: {command}\n{details}")
+        raise DisgustDocsError(f"Command failed: {command}\n{details}")
     return completed
 
 
@@ -48,7 +48,7 @@ def ensure_clean_worktree(path: Path) -> None:
         return
     completed = run_git(["status", "--porcelain"], cwd=path)
     if completed.stdout.strip():
-        raise AgentDocsError(f"Worktree has local changes and will not be overwritten: {path}")
+        raise DisgustDocsError(f"Worktree has local changes and will not be overwritten: {path}")
 
 
 def remove_worktree(path: Path, mirror: Path) -> None:
@@ -89,7 +89,7 @@ def resolve_ref(mirror: Path, branch: str) -> str:
         completed = run_git(["--git-dir", str(mirror), "rev-parse", "--verify", candidate], check=False)
         if completed.returncode == 0:
             return completed.stdout.strip()
-    raise AgentDocsError(f"Branch not found in docs repository: {branch}")
+    raise DisgustDocsError(f"Branch not found in docs repository: {branch}")
 
 
 def ref_exists(mirror: Path, ref: str) -> bool:
@@ -134,7 +134,7 @@ def commit_all(path: Path, message: str) -> bool:
 def ensure_git_worktree(path: Path) -> None:
     completed = run_git(["rev-parse", "--is-inside-work-tree"], cwd=path, check=False)
     if completed.returncode != 0 or completed.stdout.strip() != "true":
-        raise AgentDocsError(f"Not a git worktree: {path}")
+        raise DisgustDocsError(f"Not a git worktree: {path}")
 
 
 def push_branch(path: Path, branch: str) -> None:
@@ -143,11 +143,11 @@ def push_branch(path: Path, branch: str) -> None:
 
 def require_gh() -> None:
     if shutil.which("gh") is None:
-        raise AgentDocsError("GitHub CLI 'gh' is required for publish but was not found.")
+        raise DisgustDocsError("GitHub CLI 'gh' is required for publish but was not found.")
     auth = run(["gh", "auth", "status"], check=False)
     if auth.returncode != 0:
         details = auth.stderr.strip() or auth.stdout.strip()
-        raise AgentDocsError(f"GitHub CLI is not authenticated.\n{details}")
+        raise DisgustDocsError(f"GitHub CLI is not authenticated.\n{details}")
 
 
 def create_pr(path: Path, title: str, body: str, base_branch: str) -> str:

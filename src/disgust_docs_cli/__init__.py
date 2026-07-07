@@ -1,4 +1,4 @@
-"""Agent Docs CLI package."""
+"""Disgust Docs CLI package."""
 
 __all__ = ["__version__"]
 
