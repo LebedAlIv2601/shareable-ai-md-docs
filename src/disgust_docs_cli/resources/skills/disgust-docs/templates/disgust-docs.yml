@@ -1,0 +1,8 @@
+version: 1
+docs:
+  product:
+    repo: "git@github.com:org/product-docs.git"
+    branch: "main"
+    provider: "github"
+    mode: "pr"
+    path: ".disgust-docs/product"

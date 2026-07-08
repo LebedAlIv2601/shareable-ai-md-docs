@@ -28,6 +28,7 @@ from .paths import (
     validate_branch_name,
     validate_doc_path,
 )
+from .skill_installer import install_skill
 from .state import EditSession, load_state, save_state, with_edit, without_edit
 
 
@@ -75,6 +76,16 @@ def build_parser() -> argparse.ArgumentParser:
     remove_parser.add_argument("alias")
     remove_parser.add_argument("--yes", action="store_true", help="Skip confirmation.")
 
+    skill_parser = subparsers.add_parser("skill", help="Manage the bundled agent skill.")
+    skill_subparsers = skill_parser.add_subparsers(dest="skill_command", required=True)
+    skill_install_parser = skill_subparsers.add_parser("install", help="Install the bundled agent skill.")
+    skill_install_parser.add_argument(
+        "--global",
+        action="store_true",
+        dest="global_install",
+        help="Install to ${CODEX_HOME:-~/.codex}/skills instead of .agents/skills.",
+    )
+
     return parser
 
 
@@ -107,6 +118,11 @@ def dispatch(args: argparse.Namespace, project_root: Path) -> None:
         command_abort(project_root, args.alias, args.yes)
     elif args.command == "remove":
         command_remove(project_root, args.alias, args.yes)
+    elif args.command == "skill":
+        if args.skill_command == "install":
+            command_skill_install(project_root, args.global_install)
+        else:
+            raise DisgustDocsError(f"Unknown skill command: {args.skill_command}")
     else:
         raise DisgustDocsError(f"Unknown command: {args.command}")
 
@@ -251,6 +267,11 @@ def command_remove(project_root: Path, alias: str, yes: bool) -> None:
     state = without_edit(load_state(project_root), alias)
     save_state(project_root, state)
     print(f"Removed docs '{alias}'")
+
+
+def command_skill_install(project_root: Path, global_install: bool) -> None:
+    path = install_skill(project_root, global_install=global_install)
+    print(f"Installed disgust-docs skill -> {path}")
 
 
 def ensure_gitignore(project_root: Path) -> None:

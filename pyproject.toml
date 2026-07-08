@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "disgust-docs"
-version = "0.1.0"
+version = "0.1.1"
 description = "CLI for sharing product Markdown documentation with local agent projects."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -26,4 +26,10 @@ disgust-docs = "disgust_docs_cli.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-disgust_docs_cli = ["py.typed"]
+disgust_docs_cli = [
+  "py.typed",
+  "resources/skills/disgust-docs/SKILL.md",
+  "resources/skills/disgust-docs/agents/openai.yaml",
+  "resources/skills/disgust-docs/templates/publish.md",
+  "resources/skills/disgust-docs/templates/disgust-docs.yml",
+]

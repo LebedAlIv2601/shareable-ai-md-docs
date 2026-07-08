@@ -52,6 +52,63 @@ def make_docs_repo(root: Path) -> Path:
 
 
 class CliIntegrationTests(unittest.TestCase):
+    def test_skill_install_creates_project_local_skill(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "backend"
+            project.mkdir()
+
+            result = run(["skill", "install"], cwd=project)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            skill = project / ".agents" / "skills" / "disgust-docs"
+            self.assertTrue((skill / "SKILL.md").exists())
+            self.assertTrue((skill / "agents" / "openai.yaml").exists())
+            self.assertTrue((skill / "templates" / "publish.md").exists())
+            self.assertTrue((skill / "templates" / "disgust-docs.yml").exists())
+            self.assertIn(str(skill), result.stdout)
+
+    def test_skill_install_overwrites_existing_destination(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp) / "backend"
+            project.mkdir()
+            skill = project / ".agents" / "skills" / "disgust-docs"
+            skill.mkdir(parents=True)
+            stale = skill / "stale.txt"
+            stale.write_text("old\n", encoding="utf-8")
+
+            result = run(["skill", "install"], cwd=project)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(stale.exists())
+            self.assertIn("name: disgust-docs", (skill / "SKILL.md").read_text(encoding="utf-8"))
+
+    def test_skill_install_global_uses_codex_home(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            project = root / "backend"
+            project.mkdir()
+            codex_home = root / "codex-home"
+
+            result = run(["skill", "install", "--global"], cwd=project, env={"CODEX_HOME": str(codex_home)})
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            skill = codex_home / "skills" / "disgust-docs"
+            self.assertTrue((skill / "SKILL.md").exists())
+            self.assertTrue((skill / "agents" / "openai.yaml").exists())
+            self.assertIn(str(skill), result.stdout)
+
+    def test_help_exposes_skill_install(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+
+            top_help = run(["--help"], cwd=project)
+            install_help = run(["skill", "install", "--help"], cwd=project)
+
+            self.assertEqual(top_help.returncode, 0, top_help.stderr)
+            self.assertIn("skill", top_help.stdout)
+            self.assertEqual(install_help.returncode, 0, install_help.stderr)
+            self.assertIn("--global", install_help.stdout)
+
     def test_init_add_sync_creates_project_local_docs(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

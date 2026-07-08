@@ -2,7 +2,8 @@
 
 ## Scope
 
-- V1 intentionally без generated index, без автоматического патча `AGENTS.md` в проектах-потребителях и без отдельного agent skill.
+- V1 intentionally без generated index и без автоматического патча `AGENTS.md` в проектах-потребителях.
+- Agent skill поддерживается как bundled installable skill через `disgust-docs skill install`.
 - Direct push в `main`, обход `mode: readOnly` и запись вне `.disgust-docs/` не поддерживаются.
 
 ## Архитектура
@@ -26,6 +27,7 @@
 - `disgust-docs publish <alias> --message ... --title ... --body ...`: создать commit, push и GitHub PR.
 - `disgust-docs abort <alias>`: закрыть clean edit session без публикации.
 - `disgust-docs remove <alias>`: убрать регистрацию и локальный worktree.
+- `disgust-docs skill install [--global]`: установить bundled agent skill локально в `.agents/skills/disgust-docs` или глобально в `${CODEX_HOME:-~/.codex}/skills/disgust-docs`.
 
 ## Разработка
 
@@ -33,6 +35,18 @@
 - Для ручных правок используй `apply_patch`.
 - Не добавляй runtime-зависимости без причины; текущий v1 работает на стандартной библиотеке Python и опционально использует PyYAML, если он уже установлен.
 - Не удаляй и не меняй пользовательские незакоммиченные изменения без явной просьбы.
+
+## Релиз
+
+- PyPI publishing выполняется через `.github/workflows/publish.yml` по тегам `v*`.
+- Перед релизом обнови `version` в `pyproject.toml`.
+- Для patch release создай тег вида `v0.1.1` после commit и push:
+
+```bash
+git tag v0.1.1
+git push origin main
+git push origin v0.1.1
+```
 
 ## Проверки
 
