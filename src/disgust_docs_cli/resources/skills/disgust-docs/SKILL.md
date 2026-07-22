@@ -1,54 +1,85 @@
 ---
 name: disgust-docs
-description: "Work with shared Markdown documentation through the disgust-docs CLI. Use when an agent needs to connect, sync, inspect, or safely update docs repositories from a local project using .disgust-docs.yml, .disgust-docs worktrees, and the PR flow."
+description: "Work with shared Markdown documentation through project-local Gitless snapshots managed by the disgust-docs CLI. Use when an agent needs to connect, update, inspect, edit, publish, or disconnect shared docs declared in .disgust-docs.yml without mixing those files into the project's Git repository, including when commands must target a project outside the current directory."
 ---
 
 # Disgust Docs
 
-Use this skill for documentation connected through `disgust-docs`.
+Use this skill for documentation snapshots managed through `disgust-docs`.
+
+## Project Location
+
+Run commands from the project root by default. When working from another directory, put the global `--project` option before the subcommand:
+
+```bash
+disgust-docs --project <project-root> status [alias]
+```
+
+Resolve `<project-root>` explicitly and use the same value for the entire operation.
 
 ## Initial Setup
 
 Use this flow when a project is not connected to shared docs yet.
 
-1. Check whether `disgust-docs` is available by running `disgust-docs --help`.
-2. If `.disgust-docs.yml` is missing, run `disgust-docs init` from the project root.
-3. Before adding a docs repo, identify the intended alias, repository URL, base branch, and mode with the user or existing project instructions.
-4. Add the docs repo with `disgust-docs add <alias> <repo-url> --branch <base-branch> --mode readOnly|pr`.
-5. Use `mode: readOnly` unless the user or project rules explicitly allow docs edits through pull requests.
-6. After setup, run `disgust-docs status <alias>` and confirm the configured path.
-7. Commit `.disgust-docs.yml` and `.gitignore` changes in the consumer project when the user asks to persist the connection.
+1. Check that `disgust-docs` is available with `disgust-docs --help`.
+2. If `.disgust-docs.yml` is missing, run `disgust-docs setup` from the project root.
+3. Identify the alias, repository URL, base branch, mode, and project-local snapshot path from the user or project instructions.
+4. Register and export the docs with `disgust-docs add <alias> <repo-url> --branch <base-branch> --mode readOnly|pr --path <path>`.
+5. Default to `readOnly` unless the user or project rules explicitly allow pull-request publication.
+6. Run `disgust-docs status <alias>` and confirm that the snapshot is `synced`.
+7. Commit `.disgust-docs.yml` and `.gitignore` only when the user asks to persist the connection. Never commit the generated snapshot or `.disgust-docs/` state.
 
-Use `templates/disgust-docs.yml` only as a starting point for the expected config shape. Do not copy placeholder aliases, URLs, or branches into a real project.
+Use `templates/disgust-docs.yml` only as a shape reference. Never copy placeholder URLs or branches into a real project.
 
-## Basic Flow
+## Reading Documentation
 
-1. Find the project root and inspect `.disgust-docs.yml`.
-2. Run `disgust-docs status` to understand alias, mode, state, branch, commit, dirty state, and path.
-3. If no edit session is active, run `disgust-docs sync [alias]` before relying on current docs.
-4. Treat the configured docs path as the boundary for that alias. Use whichever local tools are appropriate in the user's environment.
+1. Inspect `.disgust-docs.yml` to find the relevant alias and snapshot path.
+2. Run `disgust-docs status [alias]`.
+3. When the snapshot is missing, run `disgust-docs update [alias]`.
+4. When the snapshot is `modified`, do not update until the changes are published or the user explicitly authorizes `--discard-local`.
+5. Read the configured snapshot as ordinary local files. Start with its root README or documented entry point and search only the relevant area.
 
-## Safe Editing
+The snapshot intentionally contains no `.git`. Use `disgust-docs status` and `disgust-docs diff`, not the main project's Git status, to inspect documentation changes.
 
-- Edit docs only when the entry has `mode: pr`.
-- Start changes with `disgust-docs edit <alias> --branch <branch>`.
-- Write only inside the configured docs path for that alias.
-- Do not change `.disgust-docs.yml` just to update docs content.
-- Do not commit or push the base branch directly.
-- Do not bypass `readOnly`; if the entry is `readOnly`, propose a separate project change to switch it to `mode: pr`.
-- Before publishing, check `disgust-docs status <alias>` and review the actual docs diff.
-- Publish with `disgust-docs publish <alias> --message ... --title ... --body ...`.
-- To close a clean edit session without publishing, use `disgust-docs abort <alias>`.
+## Editing And Publishing
 
-## Errors And Limits
+- Edit only the configured snapshot path for the selected alias.
+- Publication is allowed only when the config entry has `mode: pr`.
+- Before publishing, run `disgust-docs status <alias>` and `disgust-docs diff <alias>`.
+- Review added, changed, and deleted files for secrets or unrelated generated output.
+- Publish with:
 
-- If `sync` reports an active edit session, finish it with `publish` or `abort` first.
-- If `publish` reports no changes, do not create an empty PR.
-- If `gh` is missing or unauthenticated, explain that publish requires GitHub CLI auth.
-- If the worktree is dirty before `abort` or `remove`, do not delete changes without an explicit user request.
-- Direct pushes to the base branch, writes outside `.disgust-docs/`, and automatic `AGENTS.md` patches are outside v1.
+```bash
+disgust-docs publish <alias> \
+  --branch <branch> \
+  --message <commit-message> \
+  --title <pr-title> \
+  --body <pr-body>
+```
+
+- The first publish creates a branch and pull request. Later publishes reuse the recorded branch and PR; do not choose a different branch while that publication session is active.
+- `publish` leaves the local snapshot unchanged. A later `update` replaces a fully published snapshot with the configured base branch.
+- Never use `--discard-local` unless the user explicitly authorizes losing unpublished snapshot changes.
+- Do not push the configured base branch directly.
+
+## Errors And Recovery
+
+- If `update` reports local changes, publish them or request explicit permission for `--discard-local`.
+- If `publish` fails after pushing but before creating the PR, rerun the same publish command. The saved phase allows it to continue without a new documentation edit.
+- If `publish` reports no changes, do not create an empty commit or PR.
+- If `gh` is missing or unauthenticated, explain that GitHub CLI authentication is required.
+- If the project already tracks the configured snapshot path, stop. The path must be removed from the project Git index before `update` can manage it.
+- `readOnly` is a workflow guard. Actual write protection comes from GitHub permissions and branch protection.
+- Symlinks, Git LFS materialization, automatic `AGENTS.md` patches, and direct base-branch pushes are outside the snapshot v1 contract.
+
+## Disconnecting Documentation
+
+1. Run `disgust-docs status <alias>` and inspect `disgust-docs diff <alias>` before removal.
+2. If the snapshot is `modified`, publish the changes or stop and ask the user how to preserve them. Do not delete unpublished work.
+3. After the user explicitly requests disconnection, run `disgust-docs remove <alias>`. Use `--yes` only when non-interactive removal was explicitly authorized.
+4. Treat cleanup of the now-unused `.gitignore` entry as a separate project change; do not remove it automatically when another project rule may still rely on it.
 
 ## Templates
 
-For commit and PR text templates, see `templates/publish.md`.
-For a standalone `.disgust-docs.yml` template, see `templates/disgust-docs.yml`.
+For commit and PR text, see `templates/publish.md`.
+For a standalone config example, see `templates/disgust-docs.yml`.

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -36,14 +38,26 @@ def load_config(project_root: Path, *, required: bool = True) -> DisgustDocsConf
     path = config_path(project_root)
     if not path.exists():
         if required:
-            raise DisgustDocsError("Missing .disgust-docs.yml. Run 'disgust-docs init' first.")
+            raise DisgustDocsError("Missing .disgust-docs.yml. Run 'disgust-docs setup' first.")
         return empty_config()
     data = _load_yaml(path)
     return parse_config(data, project_root)
 
 
 def save_config(project_root: Path, config: DisgustDocsConfig) -> None:
-    config_path(project_root).write_text(_dump_config(config), encoding="utf-8")
+    path = config_path(project_root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix="config-", suffix=".yml", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(_dump_config(config))
+        os.replace(temporary, path)
+    except Exception:
+        try:
+            os.unlink(temporary)
+        except FileNotFoundError:
+            pass
+        raise
 
 
 def parse_config(data: Any, project_root: Path) -> DisgustDocsConfig:
@@ -67,7 +81,7 @@ def parse_config(data: Any, project_root: Path) -> DisgustDocsConfig:
         branch = _optional_str(raw_doc, "branch", "main")
         provider = _optional_str(raw_doc, "provider", "github")
         mode = _optional_str(raw_doc, "mode", "readOnly")
-        raw_path = _optional_str(raw_doc, "path", f".disgust-docs/{alias}")
+        raw_path = _optional_str(raw_doc, "path", "docs" if not docs else f"docs/{alias}")
         validate_repo_url(repo)
         validate_branch_name(branch)
         if provider not in VALID_PROVIDERS:
@@ -83,10 +97,13 @@ def parse_config(data: Any, project_root: Path) -> DisgustDocsConfig:
             mode=mode,
             path=raw_path,
         )
+    _validate_unique_paths(docs, project_root)
     return DisgustDocsConfig(version=1, docs=docs)
 
 
 def add_doc(config: DisgustDocsConfig, doc: DocConfig, project_root: Path) -> DisgustDocsConfig:
+    if doc.alias in config.docs:
+        raise DisgustDocsError(f"Docs alias already exists: {doc.alias}.")
     validate_alias(doc.alias)
     validate_repo_url(doc.repo)
     validate_branch_name(doc.branch)
@@ -94,7 +111,8 @@ def add_doc(config: DisgustDocsConfig, doc: DocConfig, project_root: Path) -> Di
         raise DisgustDocsError(f"Unsupported provider: {doc.provider}.")
     if doc.mode not in VALID_MODES:
         raise DisgustDocsError(f"Unsupported mode: {doc.mode}.")
-    validate_doc_path(project_root, doc.path or f".disgust-docs/{doc.alias}", doc.alias)
+    default_path = "docs" if not config.docs else f"docs/{doc.alias}"
+    validate_doc_path(project_root, doc.path or default_path, doc.alias)
     docs = dict(config.docs)
     docs[doc.alias] = DocConfig(
         alias=doc.alias,
@@ -102,8 +120,9 @@ def add_doc(config: DisgustDocsConfig, doc: DocConfig, project_root: Path) -> Di
         branch=doc.branch,
         provider=doc.provider,
         mode=doc.mode,
-        path=doc.path or f".disgust-docs/{doc.alias}",
+        path=doc.path or default_path,
     )
+    _validate_unique_paths(docs, project_root)
     return DisgustDocsConfig(version=1, docs=docs)
 
 
@@ -154,7 +173,10 @@ def _load_v1_yaml(text: str) -> dict[str, Any]:
         if indent == 0:
             key, value = _split_yaml_pair(line)
             if key == "version":
-                result["version"] = int(value)
+                try:
+                    result["version"] = int(value)
+                except ValueError as exc:
+                    raise DisgustDocsError(".disgust-docs.yml version must be an integer.") from exc
             elif key == "docs":
                 in_docs = True
             else:
@@ -188,6 +210,17 @@ def _unquote(value: str) -> str:
 
 def _dump_config(config: DisgustDocsConfig) -> str:
     lines = ["version: 1", "docs:"]
+    if not config.docs:
+        lines.extend(
+            [
+                "  # product:",
+                '  #   repo: "git@github.com:org/product-docs.git"',
+                '  #   branch: "main"',
+                '  #   provider: "github"',
+                '  #   mode: "readOnly"',
+                '  #   path: "docs"',
+            ]
+        )
     for alias in sorted(config.docs):
         doc = config.docs[alias]
         lines.extend(
@@ -197,7 +230,7 @@ def _dump_config(config: DisgustDocsConfig) -> str:
                 f"    branch: {_quote(doc.branch)}",
                 f"    provider: {_quote(doc.provider)}",
                 f"    mode: {_quote(doc.mode)}",
-                f"    path: {_quote(doc.path or f'.disgust-docs/{alias}')}",
+                f"    path: {_quote(doc.path or 'docs')}",
             ]
         )
     return "\n".join(lines) + "\n"
@@ -206,3 +239,23 @@ def _dump_config(config: DisgustDocsConfig) -> str:
 def _quote(value: str) -> str:
     escaped = value.replace("\\", "\\\\").replace('"', '\\"')
     return f'"{escaped}"'
+
+
+def _validate_unique_paths(docs: dict[str, DocConfig], project_root: Path) -> None:
+    resolved: list[tuple[str, Path]] = []
+    for alias, doc in docs.items():
+        path = validate_doc_path(project_root, doc.path, alias)
+        for other_alias, other_path in resolved:
+            if path == other_path or _is_relative_to(path, other_path) or _is_relative_to(other_path, path):
+                raise DisgustDocsError(
+                    f"Docs paths for '{alias}' and '{other_alias}' must not overlap."
+                )
+        resolved.append((alias, path))
+
+
+def _is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.relative_to(parent)
+    except ValueError:
+        return False
+    return True

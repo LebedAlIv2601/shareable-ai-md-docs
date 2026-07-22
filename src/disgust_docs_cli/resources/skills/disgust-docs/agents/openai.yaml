@@ -1,4 +1,4 @@
 interface:
   display_name: "Disgust Docs"
-  short_description: "Work with shared Markdown docs via CLI"
-  default_prompt: "Use $disgust-docs to sync, inspect, and safely update shared Markdown docs through the disgust-docs CLI."
+  short_description: "Manage shared Markdown docs snapshots"
+  default_prompt: "Use $disgust-docs to connect, update, inspect, edit, publish, or disconnect shared Markdown documentation through project-local Gitless snapshots."

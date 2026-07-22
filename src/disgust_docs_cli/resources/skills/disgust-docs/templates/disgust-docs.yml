@@ -5,4 +5,4 @@ docs:
     branch: "main"
     provider: "github"
     mode: "pr"
-    path: ".disgust-docs/product"
+    path: "docs"

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "disgust-docs"
-version = "0.1.1"
-description = "CLI for sharing product Markdown documentation with local agent projects."
+version = "0.2.0"
+description = "CLI for managing Git-backed Markdown documentation as project-local snapshots."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }

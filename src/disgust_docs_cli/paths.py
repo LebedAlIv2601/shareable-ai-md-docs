@@ -30,19 +30,19 @@ def global_home() -> Path:
     return Path.home() / ".disgust-docs"
 
 
-def mirror_root() -> Path:
-    return global_home() / "mirrors"
-
-
-def mirror_id(repo_url: str) -> str:
+def repo_cache_id(repo_url: str) -> str:
     digest = hashlib.sha256(repo_url.encode("utf-8")).hexdigest()[:16]
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "-", repo_url).strip("-._")
     cleaned = cleaned[-48:] if cleaned else "repo"
-    return f"{cleaned}-{digest}.git"
+    return f"{cleaned}-{digest}"
 
 
-def mirror_path(repo_url: str) -> Path:
-    return mirror_root() / mirror_id(repo_url)
+def repo_cache_root() -> Path:
+    return global_home() / "repos"
+
+
+def repo_cache_path(repo_url: str) -> Path:
+    return repo_cache_root() / repo_cache_id(repo_url)
 
 
 def validate_alias(alias: str) -> None:
@@ -88,13 +88,28 @@ def validate_branch_name(branch: str) -> None:
 
 def validate_doc_path(project_root: Path, raw_path: str, alias: str) -> Path:
     if not raw_path:
-        raw_path = f".disgust-docs/{alias}"
+        raw_path = "docs" if alias == "product" else f"docs/{alias}"
+    raw = Path(raw_path)
+    if raw.is_absolute():
+        raise DisgustDocsError("Doc path must be relative to the project root.")
+    if ".." in raw.parts:
+        raise DisgustDocsError("Doc path must not contain '..'.")
     candidate = (project_root / raw_path).resolve()
-    allowed = docs_dir(project_root).resolve()
+    allowed = project_root.resolve()
     try:
         candidate.relative_to(allowed)
     except ValueError as exc:
-        raise DisgustDocsError("Doc path must stay inside .disgust-docs/.") from exc
+        raise DisgustDocsError("Doc path must stay inside the project root.") from exc
     if candidate == allowed:
-        raise DisgustDocsError("Doc path must point to a child of .disgust-docs/.")
+        raise DisgustDocsError("Doc path must point to a child of the project root.")
+    relative = candidate.relative_to(allowed)
+    if relative.parts[0] == ".git":
+        raise DisgustDocsError("Doc path must not point inside .git/.")
+    internal = docs_dir(project_root).resolve()
+    try:
+        candidate.relative_to(internal)
+    except ValueError:
+        pass
+    else:
+        raise DisgustDocsError("Doc path must not point inside disgust-docs internal state directory.")
     return candidate

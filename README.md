@@ -2,9 +2,9 @@
 
 ## Overview
 
-`disgust-docs` connects product Markdown documentation repositories to local code projects so coding agents can read and update shared docs as normal files.
+`disgust-docs` makes shared Markdown documentation available to coding agents as ordinary project-local files without mixing the documentation into the project's Git repository.
 
-It keeps shared docs in project-local worktrees under `.disgust-docs/`, while git objects are cached globally under `~/.disgust-docs/mirrors/`.
+The CLI keeps one regular cache clone per documentation repository under `~/.disgust-docs/repos/`. `update` exports a tracked Git commit into an ignored project directory such as `docs/`; the exported snapshot contains no `.git` metadata. Agents can read and edit that snapshot normally. `publish` transfers the resulting file changes into a temporary Git checkout, pushes a branch, and opens a GitHub pull request.
 
 ## Install
 
@@ -30,25 +30,82 @@ uv tool install git+https://github.com/LebedAlIv2601/shareable-ai-md-docs.git
 ## Quick Start
 
 ```bash
-disgust-docs init
-disgust-docs add pizza git@github.com:org/pizza-docs.git --branch main --mode pr
-disgust-docs sync pizza
-disgust-docs edit pizza --branch docs/update-checkout-rules
-disgust-docs publish pizza --message "Update checkout docs" --title "Update checkout docs"
+disgust-docs setup
+disgust-docs add product git@github.com:org/product-docs.git --branch main --mode pr --path docs
 ```
 
-The project commits `.disgust-docs.yml` and ignores `.disgust-docs/`.
+The project commits `.disgust-docs.yml`. The generated `docs/` snapshot and `.disgust-docs/` local state are added to `.gitignore`.
 
-## Features
+Refresh the local snapshot:
 
-- Each product has its own docs repository.
-- `readOnly` docs can be synced and inspected.
-- `pr` docs can be edited through an explicit edit session and published through a GitHub PR using `gh`.
-- Local worktrees give agents normal files to inspect and edit.
-- The portable project contract lives in `.disgust-docs.yml`.
-- Direct pushes to `main` are intentionally unsupported.
+```bash
+disgust-docs update product
+```
 
-Generated indexes, automatic `AGENTS.md` patches, and non-GitHub providers are future extensions.
+Edit files directly under `docs/`, then inspect and publish them:
+
+```bash
+disgust-docs status product
+disgust-docs diff product
+disgust-docs publish product \
+  --branch docs/update-checkout-rules \
+  --message "Update checkout docs" \
+  --title "Update checkout docs"
+```
+
+The local `docs/` files remain unchanged after publishing. Additional edits can be published to the same branch and pull request. A later `update` replaces the published snapshot with the configured base branch.
+
+## Configuration
+
+```yaml
+version: 1
+docs:
+  product:
+    repo: "git@github.com:org/product-docs.git"
+    branch: "main"
+    provider: "github"
+    mode: "pr"
+    path: "docs"
+```
+
+- `repo` is the documentation Git repository.
+- `branch` is the base branch exported by `update` and targeted by pull requests.
+- `mode: readOnly` allows snapshots but refuses publication.
+- `mode: pr` allows publication through GitHub pull requests.
+- `path` must be a non-overlapping relative directory inside the project.
+
+## Safety
+
+- Only tracked files from the resolved base commit are exported.
+- Project snapshots contain no `.git` directory.
+- Managed ignore entries are kept after earlier negation rules so snapshots remain effectively ignored by the project repository.
+- `update` refuses to overwrite unpublished local changes unless `--discard-local` is explicit.
+- `publish` records commit, push, and PR phases so a failed PR creation can be retried.
+- `publish` leaves the project-local snapshot intact.
+- A snapshot path already tracked by the project repository is rejected.
+- Snapshot paths inside `.git/` or the CLI-owned `.disgust-docs/` directory are rejected.
+- Symlinks and other non-file Git entries are intentionally unsupported in v1 snapshots.
+- Direct pushes to the configured base branch are unsupported.
+
+`readOnly` is a workflow guard, not a security boundary. Repository permissions and branch protection remain authoritative.
+
+## Commands
+
+- `disgust-docs setup`: create the config template and Git ignore entries.
+- `disgust-docs add <alias> <repo>`: register a repository and create its first snapshot.
+- `disgust-docs update [alias]`: fetch the cache and replace safe snapshots.
+- `disgust-docs status [alias]`: show snapshot, publication branch, and PR state.
+- `disgust-docs diff <alias>`: compare local files with the last exported commit.
+- `disgust-docs publish <alias> ...`: commit snapshot changes, push a branch, and create or update a PR.
+- `disgust-docs remove <alias>`: remove registration and a safe local snapshot.
+
+`init` and `sync` remain deprecated aliases for `setup` and `update`.
+
+Run commands from another working directory by placing the global project option before the subcommand:
+
+```bash
+disgust-docs --project /path/to/backend status product
+```
 
 ## Skill
 

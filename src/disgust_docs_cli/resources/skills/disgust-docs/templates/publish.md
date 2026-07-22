@@ -22,5 +22,6 @@ Update <topic> docs
 ## Validation
 
 - Reviewed documentation changes.
+- Ran `disgust-docs diff <alias>`.
 - Ran `disgust-docs status <alias>`.
 ```
